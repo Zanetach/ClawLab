@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0b0d11;
+  --bg-secondary: #111827;
+  --bg-card: #000000;
+  --accent-amber: #d97706;
+  --accent-amber-glow: #f59e0b;
+  --status-success: #10b981;
+  --status-warning: #d97706;
+  --status-danger: #ef4444;
+  --status-info: #3b82f6;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border-color: #1e293b;
+  --grid-color: rgba(255, 255, 255, 0.03);
+  --hazard-amber: #d97706;
+}
+
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-glow: var(--accent-amber-glow);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --color-status-info: var(--status-info);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border-color);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--accent-amber);
+  color: #000;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.grid-texture {
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.hazard-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 10px,
+    var(--hazard-amber) 10px,
+    var(--hazard-amber) 20px
+  );
+}
+
+.scan-highlight {
+  animation: scanHighlight 2s ease-in-out infinite;
+}
+
+@keyframes scanHighlight {
+  0%, 100% {
+    box-shadow: inset 0 0 0 1px var(--accent-amber);
+  }
+  50% {
+    box-shadow: inset 0 0 20px -5px var(--accent-amber);
+  }
+}
+
+.pulse-dot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.corner-screw::before,
+.corner-screw::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-color);
+}
+
+.corner-screw::before {
+  top: 6px;
+  left: 6px;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.corner-screw::after {
+  top: 6px;
+  right: 6px;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.font-mono {
+  font-family: 'DM Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+.uppercase-title {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── LobsterCard animations ── */
+
+@keyframes lobsterFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0px); }
+  50%       { transform: translateX(-50%) translateY(-8px); }
+}
+
+@keyframes lobsterGlow {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scaleX(1); }
+  50%       { opacity: 0.9;  transform: translateX(-50%) scaleX(1.25); }
+}
+
+@keyframes eqBar {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1); }
+}
+
+@keyframes actBarPulse {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.82); }
+  50%       { opacity: 0.6; transform: scaleX(1); }
+}
+
+@keyframes scanBeam {
+  0%   { top: 0%;   opacity: 0.6; }
+  90%  { opacity: 0.3; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes sparkDraw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── end LobsterCard animations ── */
+
+input, select, textarea {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 0 1px var(--accent-amber);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
