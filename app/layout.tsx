@@ -14,13 +14,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body className="h-full antialiased">
+        <svg aria-hidden="true" width="0" height="0" className="absolute">
+          <defs>
+            <filter id="gooey-filter">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+              <feColorMatrix
+                in="blur"
+                mode="matrix"
+                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9"
+                result="gooey"
+              />
+              <feComposite in="SourceGraphic" in2="gooey" operator="atop" />
+            </filter>
+          </defs>
+        </svg>
         <ConsoleShell>{children}</ConsoleShell>
       </body>
     </html>

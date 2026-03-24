@@ -1,74 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { StatusDot } from '@/components/ui/StatusDot';
 import { GatewayStatus } from '@/lib/types';
 
 interface ConsoleHeaderProps {
   gatewayStatus?: GatewayStatus;
 }
 
-export function ConsoleHeader({ gatewayStatus }: ConsoleHeaderProps) {
-  const [time, setTime] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }));
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const status = gatewayStatus?.status || 'online';
+export function ConsoleHeader(_props: ConsoleHeaderProps) {
+  const statusLabel = (_props.gatewayStatus?.status ?? 'offline').toUpperCase();
+  const versionLabel = _props.gatewayStatus?.version ?? 'Gateway';
 
   return (
-    <header className="h-16 bg-bg-secondary border-b border-zinc-800 flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-amber-600 flex items-center justify-center">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="w-5 h-5 text-black"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
-          <span className="text-lg font-bold tracking-tight">STRATA<span className="text-amber-600">OS</span></span>
-        </div>
-        <div className="h-6 w-px bg-zinc-700" />
-        <span className="text-xs text-zinc-500 uppercase tracking-widest">ClawLab</span>
+    <header data-status={_props.gatewayStatus?.status ?? 'online'} className="glass-nav glass-panel relative z-10 mx-3 mt-2 flex h-14 items-center justify-between rounded-[18px] px-4 py-2">
+      <div className="relative flex min-w-[280px] max-w-xl flex-1 items-center">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-4 h-4 w-4 text-white/35">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input
+          aria-label="Search"
+          placeholder="Search..."
+          className="h-9 w-full rounded-full border-white/8 bg-[#1c2340]/70 pl-10 pr-4 text-sm text-white placeholder:text-white/30 focus:border-white/14 focus:bg-[#1d2544]/85 focus:shadow-none"
+        />
       </div>
 
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-3">
-          <StatusDot status={status === 'online' ? 'online' : status === 'degraded' ? 'warning' : 'offline'} size="md" />
-          <div className="flex flex-col">
-            <span className="text-xs text-zinc-400 uppercase">Gateway</span>
-            <span className="text-sm font-mono text-emerald-500">{status.toUpperCase()}</span>
-          </div>
-        </div>
-
-        <div className="h-8 w-px bg-zinc-700" />
+      <div className="ml-4 flex items-center gap-4">
+        <button className="glass-button relative flex h-9 w-9 items-center justify-center rounded-full border-white/10 text-white/70">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+            <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" />
+            <path d="M10 17a2 2 0 0 0 4 0" />
+          </svg>
+          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-pink-400" />
+        </button>
 
         <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end">
-            <span className="text-xs text-zinc-500 uppercase">System Time</span>
-            <span className="text-sm font-mono text-amber-500">{time}</span>
+          <div className="text-right">
+            <div className="text-xs font-semibold text-white">{versionLabel}</div>
+            <div className="text-[10px] text-white/45">Gateway Control Plane</div>
           </div>
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <div className="relative flex min-w-[68px] items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(135deg,rgba(255,79,159,0.18)_0%,rgba(139,92,246,0.18)_100%)] px-3 py-2 text-[10px] font-bold text-white shadow-[0_0_18px_rgba(255,79,159,0.18)]">
+            {statusLabel}
+          </div>
         </div>
       </div>
     </header>

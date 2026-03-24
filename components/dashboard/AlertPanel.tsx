@@ -21,8 +21,8 @@ export function AlertPanel({ alerts, resourceUsage }: AlertPanelProps) {
   };
 
   return (
-    <div className="bg-bg-card border border-zinc-800 rounded p-4 corner-screw">
-      <div className="flex items-center justify-between mb-4">
+    <div className="glass-panel rounded-[24px] p-4">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="uppercase-title text-text-muted">System Alerts</h2>
         <span className="flex items-center gap-1.5 text-xs">
           <StatusDot status={alerts.length > 0 ? 'warning' : 'online'} size="sm" />
@@ -30,11 +30,11 @@ export function AlertPanel({ alerts, resourceUsage }: AlertPanelProps) {
         </span>
       </div>
 
-      <div className="space-y-2 mb-6">
+      <div className="mb-6 space-y-2">
         {alerts.length === 0 ? (
-          <div className="text-center py-6 text-zinc-500 text-sm">
-            <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-emerald-500">
+          <div className="py-6 text-center text-sm text-zinc-400">
+            <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-cyan-300/15">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-cyan-300">
                 <path d="M20 6L9 17l-5-5" />
               </svg>
             </div>
@@ -46,13 +46,13 @@ export function AlertPanel({ alerts, resourceUsage }: AlertPanelProps) {
             return (
               <div
                 key={alert.id}
-                className={`p-3 rounded border ${config.border} bg-zinc-900/50`}
+                className={`rounded-[18px] border p-3 ${config.border} bg-white/[0.04]`}
               >
                 <div className="flex items-start gap-2">
                   <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${config.color}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-zinc-300 leading-relaxed">{alert.message}</p>
-                    <p className="text-xs text-zinc-600 mt-1 font-mono">
+                    <p className="text-xs leading-relaxed text-zinc-200">{alert.message}</p>
+                    <p className="mt-1 text-xs font-mono text-zinc-500">
                       {formatTimestamp(alert.timestamp)}
                     </p>
                   </div>
@@ -66,7 +66,7 @@ export function AlertPanel({ alerts, resourceUsage }: AlertPanelProps) {
       {alerts.length > 4 && (
         <Link
           href="/alerts"
-          className="block text-center text-xs text-amber-500 hover:text-amber-400 py-2 border-t border-zinc-800 -mx-4 -mb-4 mt-4"
+          className="mt-4 -mx-4 -mb-4 block border-t border-white/10 py-2 text-center text-xs text-cyan-300 hover:text-pink-300"
         >
           View all {alerts.length} alerts
         </Link>
@@ -74,7 +74,7 @@ export function AlertPanel({ alerts, resourceUsage }: AlertPanelProps) {
 
       {resourceUsage && (
         <>
-          <div className="hazard-stripe h-1 rounded mb-4 opacity-20" />
+          <div className="mb-4 h-px rounded bg-gradient-to-r from-transparent via-cyan-300/40 via-50% to-transparent" />
 
           <h3 className="uppercase-title text-text-muted mb-3">Resource Monitor</h3>
 
@@ -92,14 +92,14 @@ export function AlertPanel({ alerts, resourceUsage }: AlertPanelProps) {
 function ResourceBar({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="flex items-center justify-between text-xs mb-1">
+      <div className="mb-1 flex items-center justify-between text-xs">
         <span className="text-zinc-500">{label}</span>
-        <span className="font-mono text-amber-500">{value}%</span>
+        <span className="font-mono text-cyan-300">{value}%</span>
       </div>
-      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
         <div
           className={`h-full rounded-full transition-all duration-500 ${
-            value > 80 ? 'bg-red-500' : value > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+            value > 80 ? 'bg-red-400' : value > 60 ? 'bg-pink-400' : 'bg-cyan-300'
           }`}
           style={{ width: `${value}%` }}
         />

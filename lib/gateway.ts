@@ -1,64 +1,97 @@
-import { Agent, GatewayStatus, DashboardStats, Alert, AgentRole } from './types';
+import {
+  Agent,
+  GatewayStatus,
+  DashboardStats,
+  DashboardSummary,
+  Alert,
+  AvailableModel,
+  CreateAgentInput,
+  AgentSyncStatus,
+  GatewayConnectionConfig,
+  GatewayConnectionState,
+} from './types';
+import { createFallbackSnapshot, type DashboardSnapshot } from './gateway-core';
 
-const API_BASE = '/api/agents';
+const inflightRequests = new Map<string, Promise<unknown>>();
+const responseCache = new Map<string, { expiresAt: number; data: unknown }>();
+const CLIENT_CACHE_TTL_MS = 1_500;
 
-interface OpenClawAgent {
-  id: string;
-  name?: string;
-  model?: string;
-  status?: 'online' | 'offline' | 'busy';
+function getCachedResponse<T>(key: string): T | null {
+  const cached = responseCache.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    responseCache.delete(key);
+    return null;
+  }
+
+  return cached.data as T;
 }
 
-function convertOpenClawAgent(ocAgent: OpenClawAgent): Agent {
-  return {
-    id: ocAgent.id,
-    name: ocAgent.name || ocAgent.id,
-    role: 'executor',
-    model: ocAgent.model || 'kimi2/kimi-for-coding',
-    status: ocAgent.status || 'online',
-    tokenUsage: 0,
-    maxTokens: 100000,
-    createdAt: new Date().toISOString(),
-    lastActive: new Date().toISOString(),
-  };
+function invalidateClientGatewayCache(): void {
+  inflightRequests.clear();
+  responseCache.clear();
+}
+
+async function fetchJson<T>(input: string, options?: { cacheTtlMs?: number; dedupe?: boolean }): Promise<T> {
+  const cacheKey = input;
+  const dedupe = options?.dedupe ?? true;
+  const cacheTtlMs = options?.cacheTtlMs ?? CLIENT_CACHE_TTL_MS;
+  const cached = getCachedResponse<T>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const existingRequest = dedupe ? inflightRequests.get(cacheKey) : null;
+  if (existingRequest) {
+    return existingRequest as Promise<T>;
+  }
+
+  const request = (async () => {
+    const response = await fetch(input, {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    const data = await response.json() as T;
+    responseCache.set(cacheKey, {
+      expiresAt: Date.now() + cacheTtlMs,
+      data,
+    });
+    return data;
+  })();
+
+  if (dedupe) {
+    inflightRequests.set(cacheKey, request);
+  }
+
+  try {
+    return await request;
+  } finally {
+    inflightRequests.delete(cacheKey);
+  }
+}
+
+export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+  try {
+    return await fetchJson<DashboardSnapshot>('/api/dashboard');
+  } catch (error) {
+    console.error('Failed to get dashboard snapshot:', error);
+    return createFallbackSnapshot();
+  }
 }
 
 export async function getGatewayStatus(): Promise<GatewayStatus> {
-  try {
-    const response = await fetch(`${API_BASE}?method=status`);
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    }
-  } catch {
-    // Fallback
-  }
-
-  return {
-    status: 'online',
-    version: '2026.3.13',
-    uptime: 0,
-    connectedAgents: 0,
-    totalBots: 0,
-    totalTokens: 0,
-  };
+  return fetchJson<GatewayStatus>('/api/agents?method=status');
 }
 
 export async function getAgents(): Promise<Agent[]> {
-  try {
-    const response = await fetch('/api/agents');
-    if (response.ok) {
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        return data.map(convertOpenClawAgent);
-      }
-    }
-    throw new Error('Invalid response');
-  } catch (error) {
-    console.error('Failed to get agents from gateway:', error);
-    // Return mock data
-    return getMockAgents();
-  }
+  return fetchJson<Agent[]>('/api/agents');
 }
 
 export async function getAgent(id: string): Promise<Agent | null> {
@@ -66,46 +99,100 @@ export async function getAgent(id: string): Promise<Agent | null> {
   return agents.find(a => a.id === id) || null;
 }
 
-export async function createAgent(data: {
-  name: string;
-  role: AgentRole;
-  model: string;
-  botId?: string;
-}): Promise<Agent> {
-  throw new Error('Not implemented via API');
+export async function getAvailableModels(): Promise<AvailableModel[]> {
+  return fetchJson<AvailableModel[]>('/api/agents?method=models');
+}
+
+export async function getAgentSyncStatus(agentId: string): Promise<AgentSyncStatus> {
+  return fetchJson<AgentSyncStatus>(`/api/agents?method=sync&agentId=${encodeURIComponent(agentId)}`);
+}
+
+export async function createAgent(data: CreateAgentInput): Promise<Agent> {
+  const response = await fetch('/api/agents', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = typeof payload?.error === 'string' ? payload.error : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  const agent = await response.json() as Agent;
+  invalidateClientGatewayCache();
+  return agent;
+}
+
+export async function getGatewayConnectionState(): Promise<GatewayConnectionState> {
+  return fetchJson<GatewayConnectionState>('/api/gateway-connection');
+}
+
+export async function saveGatewayConnection(
+  input:
+    | { mode: 'auto' }
+    | { mode: 'manual'; url: string; token?: string }
+): Promise<GatewayConnectionConfig> {
+  const response = await fetch('/api/gateway-connection', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = typeof payload?.error === 'string' ? payload.error : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  const connection = await response.json() as GatewayConnectionConfig;
+  invalidateClientGatewayCache();
+  return connection;
+}
+
+export async function reconnectGatewayConnection(connection: GatewayConnectionConfig): Promise<GatewayConnectionConfig> {
+  if (connection.mode === 'auto') {
+    return saveGatewayConnection({ mode: 'auto' });
+  }
+
+  return saveGatewayConnection({
+    mode: 'manual',
+    url: connection.url,
+    token: connection.token,
+  });
+}
+
+export async function disconnectGatewayConnection(): Promise<GatewayConnectionState> {
+  const response = await fetch('/api/gateway-connection', {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = typeof payload?.error === 'string' ? payload.error : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  const state = await response.json() as GatewayConnectionState;
+  invalidateClientGatewayCache();
+  return state;
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  try {
-    const agents = await getAgents();
-    return {
-      agentCount: agents.length,
-      botCount: agents.filter(a => a.botId).length,
-      tokenConsumption: 48,
-      activeAlerts: 0,
-    };
-  } catch {
-    return {
-      agentCount: 4,
-      botCount: 3,
-      tokenConsumption: 48,
-      activeAlerts: 2,
-    };
-  }
+  const summary = await fetchJson<DashboardSummary>('/api/dashboard-summary');
+  return summary.stats;
 }
 
 export async function getAlerts(): Promise<Alert[]> {
-  return [];
+  const summary = await fetchJson<DashboardSummary>('/api/dashboard-summary');
+  return summary.alerts;
 }
 
-function getMockAgents(): Agent[] {
-  return [
-    { id: 'main',    name: '猪智星', role: 'coordinator', model: 'kimi2/kimi-for-coding', status: 'online',   tokenUsage: 25100,  maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-    { id: 'sec',     name: '秘书',   role: 'executor',    model: 'kimi2/kimi-for-coding', status: 'online',   tokenUsage: 3800,   maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-    { id: 'pm',      name: 'PM BOT', role: 'observer',    model: 'kimi2/kimi-for-coding', status: 'online',   tokenUsage: 1400,   maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-    { id: 'coding',  name: 'CODING', role: 'executor',    model: 'kimi2/kimi-for-coding', status: 'warning',  tokenUsage: 21000,  maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-    { id: 'design',  name: '设计',   role: 'executor',    model: 'kimi2/kimi-for-coding', status: 'warning',  tokenUsage: 24400,  maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-    { id: 'market',  name: '市场',   role: 'executor',    model: 'kimi2/kimi-for-coding', status: 'online',   tokenUsage: 9900,   maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-    { id: 'review',  name: 'REVIEW', role: 'observer',    model: 'kimi2/kimi-for-coding', status: 'online',   tokenUsage: 48000,  maxTokens: 500000, createdAt: '2026-03-01T10:00:00Z', lastActive: new Date().toISOString() },
-  ];
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  return fetchJson<DashboardSummary>('/api/dashboard-summary');
 }

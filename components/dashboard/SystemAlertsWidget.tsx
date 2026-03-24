@@ -1,83 +1,90 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { getDashboardSummary } from '@/lib/gateway';
+import { useVisibleInterval } from '@/lib/use-visible-interval';
+import type { DashboardSummary } from '@/lib/types';
 
-interface ResourceStats {
-  cpu: number;
-  memory: number;
-  network: number;
-}
-
-function StatIcon({ label, value, icon, color }: {
+interface StatCardProps {
   label: string;
-  value: number;
+  value: string;
   icon: React.ReactNode;
   color: string;
-}) {
+}
+
+function StatCard({ label, value, icon, color }: StatCardProps) {
   return (
-    <div className="flex flex-col items-center gap-0.5" title={`${label}: ${value}%`}>
-      <div className={`w-7 h-7 rounded flex items-center justify-center border ${color}`}>
+    <div className="flex flex-col items-center gap-0.5" title={`${label}: ${value}`}>
+      <div className={`glass-badge flex h-8 w-8 items-center justify-center rounded-xl border ${color}`}>
         {icon}
       </div>
-      <span className={`text-[10px] font-mono font-bold leading-none ${
-        value > 80 ? 'text-red-400' : value > 60 ? 'text-amber-400' : 'text-emerald-400'
-      }`}>
-        {value}%
+      <span className="text-[10px] font-mono font-bold leading-none text-cyan-300">
+        {value}
       </span>
     </div>
   );
 }
 
 export function SystemAlertsWidget() {
-  const [stats, setStats] = useState<ResourceStats>({ cpu: 34, memory: 67, network: 12 });
+  const pathname = usePathname();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const enabled = pathname === '/';
 
-  // Simulate live updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        cpu: Math.max(5, Math.min(95, prev.cpu + (Math.random() * 6 - 3))),
-        memory: Math.max(10, Math.min(95, prev.memory + (Math.random() * 4 - 2))),
-        network: Math.max(1, Math.min(90, prev.network + (Math.random() * 10 - 5))),
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  useVisibleInterval(async () => {
+    try {
+      setSummary(await getDashboardSummary());
+    } catch (error) {
+      console.error('Failed to refresh dashboard summary:', error);
+    }
+  }, {
+    enabled,
+    intervalMs: 15_000,
+    runImmediately: true,
+  });
+
+  if (!enabled) {
+    return null;
+  }
+
+  const connectedAgents = summary?.gatewayStatus.connectedAgents ?? 0;
+  const activeAlerts = summary?.stats.activeAlerts ?? 0;
+  const tokenLoad = `${summary?.stats.tokenConsumption ?? 0}%`;
 
   return (
     <div className="fixed bottom-5 left-5 z-50 flex items-end gap-2">
-      <StatIcon
-        label="CPU"
-        value={Math.round(stats.cpu)}
-        color={stats.cpu > 80 ? 'border-red-500/50 bg-red-500/10 text-red-400' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}
+      <StatCard
+        label="Agents"
+        value={String(connectedAgents)}
+        color="border-white/12 bg-white/6 text-zinc-300"
         icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-            <rect x="9" y="9" width="6" height="6" />
-            <path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" />
+            <circle cx="9" cy="8" r="3" />
+            <path d="M3 19c0-3 3-5 6-5s6 2 6 5" />
+            <path d="M17 11a3 3 0 1 0 0-6" />
+            <path d="M21 19c0-2.5-1.8-4.2-4.2-4.8" />
           </svg>
         }
       />
-      <StatIcon
-        label="Memory"
-        value={Math.round(stats.memory)}
-        color={stats.memory > 80 ? 'border-red-500/50 bg-red-500/10 text-red-400' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}
+      <StatCard
+        label="Alerts"
+        value={String(activeAlerts)}
+        color={activeAlerts > 0 ? 'border-red-400/40 bg-red-500/10 text-red-300' : 'border-white/12 bg-white/6 text-zinc-300'}
         icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-            <rect x="2" y="6" width="20" height="12" rx="2" />
-            <path d="M6 6V4M10 6V4M14 6V4M18 6V4M6 18v2M10 18v2M14 18v2M18 18v2" />
-            <path d="M6 10h.01M10 10h.01M14 10h.01M6 14h4M12 14h2" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 3.7 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" />
           </svg>
         }
       />
-      <StatIcon
-        label="Network"
-        value={Math.round(stats.network)}
-        color={stats.network > 80 ? 'border-red-500/50 bg-red-500/10 text-red-400' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}
+      <StatCard
+        label="Load"
+        value={tokenLoad}
+        color="border-white/12 bg-white/6 text-zinc-300"
         icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
+            <path d="M12 3v18M7 8.5c0-1.7 1.6-3 3.5-3h3c1.9 0 3.5 1.3 3.5 3s-1.6 3-3.5 3h-3c-1.9 0-3.5 1.3-3.5 3s1.6 3 3.5 3h3c1.9 0 3.5-1.3 3.5-3" />
           </svg>
         }
       />

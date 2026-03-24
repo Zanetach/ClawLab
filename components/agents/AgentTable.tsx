@@ -39,6 +39,29 @@ export function AgentTable({ agents, onDelete }: AgentTableProps) {
       ),
     },
     {
+      key: 'workspace',
+      header: 'Workspace',
+      width: '320px',
+      render: (agent: Agent) => {
+        if (!agent.workspace) {
+          return <span className="text-zinc-600 text-xs">Not set</span>;
+        }
+
+        const workspaceName = getWorkspaceName(agent.workspace);
+
+        return (
+          <div className="space-y-1">
+            <div className="font-mono text-[11px] leading-5 text-zinc-400 break-all">
+              {agent.workspace}
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">
+              {workspaceName}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
       key: 'bot',
       header: 'Bot Binding',
       render: (agent: Agent) => (
@@ -124,4 +147,10 @@ export function AgentTable({ agents, onDelete }: AgentTableProps) {
       <IndustrialTable columns={columns} data={agents} />
     </div>
   );
+}
+
+function getWorkspaceName(workspace: string): string {
+  const normalized = workspace.replace(/[\\/]+$/, '');
+  const segments = normalized.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] || workspace;
 }

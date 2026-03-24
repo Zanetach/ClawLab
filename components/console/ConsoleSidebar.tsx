@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 const navItems = [
   {
     label: 'Dashboard',
     href: '/',
+    enabled: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -19,6 +21,7 @@ const navItems = [
   {
     label: 'Agents',
     href: '/agents',
+    enabled: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
         <circle cx="12" cy="8" r="4" />
@@ -31,6 +34,7 @@ const navItems = [
   {
     label: 'Bots',
     href: '/bots',
+    enabled: false,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
         <rect x="3" y="8" width="18" height="12" rx="2" />
@@ -44,6 +48,7 @@ const navItems = [
   {
     label: 'Logs',
     href: '/logs',
+    enabled: false,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -57,6 +62,7 @@ const navItems = [
   {
     label: 'Settings',
     href: '/settings',
+    enabled: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
         <circle cx="12" cy="12" r="3" />
@@ -68,42 +74,78 @@ const navItems = [
 
 export function ConsoleSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const prefetched = navItems
+      .filter((item) => item.enabled && item.href !== pathname)
+      .map((item) => item.href);
+
+    prefetched.forEach((href) => {
+      router.prefetch(href);
+    });
+  }, [pathname, router]);
 
   return (
-    <aside className="w-64 bg-bg-secondary border-r border-zinc-800 flex flex-col">
-      <nav className="flex-1 py-4">
-        <ul className="space-y-1 px-3">
+    <aside className="glass-panel flex w-[144px] flex-col rounded-[16px] border-white/8 bg-[linear-gradient(180deg,rgba(120,53,180,0.24)_0%,rgba(33,39,70,0.9)_100%)] px-3 py-2">
+      <div className="mb-4 flex items-center gap-3 px-2 py-1">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#f472b6_0%,#8b5cf6_100%)] shadow-[0_0_22px_rgba(244,114,182,0.28)]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-white">
+            <path d="M4 12h4l2-5 4 10 2-5h4" />
+          </svg>
+        </div>
+        <div className="text-sm font-semibold text-white">ClawLab</div>
+      </div>
+
+      <nav className="flex-1 py-2">
+        <ul className="space-y-1.5">
           {navItems.map((item) => {
             const isActive = pathname === item.href ||
               (item.href !== '/' && pathname.startsWith(item.href));
+            const baseClassName = `
+              flex items-center gap-3 rounded-xl px-3 py-2.5 text-[12px] transition-all duration-200
+              ${isActive
+                ? 'bg-white/10 text-white shadow-[0_4px_16px_rgba(0,0,0,0.18)]'
+                : 'text-white/55 hover:bg-white/6 hover:text-white/82'
+              }
+            `;
+            const disabledClassName = 'cursor-not-allowed text-white/28 opacity-60 hover:bg-transparent hover:text-white/28';
 
             return (
               <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded
-                    transition-all duration-150
-                    ${isActive
-                      ? 'bg-amber-600/10 text-amber-500 border-l-2 border-amber-600'
-                      : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border-l-2 border-transparent'
-                    }
-                  `}
-                >
-                  <span className={isActive ? 'text-amber-500' : 'text-zinc-500'}>{item.icon}</span>
-                  <span className="text-sm font-medium uppercase tracking-wider">{item.label}</span>
-                </Link>
+                {item.enabled ? (
+                  <Link href={item.href} prefetch className={baseClassName}>
+                    <span className={isActive ? 'text-pink-300' : 'text-white/35'}>{item.icon}</span>
+                    <span className="font-medium">{item.label}</span>
+                    {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-pink-400" />}
+                  </Link>
+                ) : (
+                  <div
+                    aria-disabled="true"
+                    className={`${baseClassName} ${disabledClassName}`}
+                    title={`${item.label} is not available yet`}
+                  >
+                    <span className="text-white/20">{item.icon}</span>
+                    <span className="font-medium">{item.label}</span>
+                    <span className="ml-auto rounded-full border border-white/8 px-2 py-0.5 text-[9px] uppercase tracking-[0.16em] text-white/30">
+                      Soon
+                    </span>
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-zinc-800">
-        <div className="hazard-stripe h-1 rounded mb-4 opacity-30" />
-        <div className="text-xs text-zinc-600 uppercase tracking-wider">
-          OpenClaw Gateway v1.0
-        </div>
+      <div className="px-2 pt-2">
+        <button className="flex items-center gap-2 text-[12px] text-white/45 transition-colors hover:text-white/75">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+            <path d="M10 17l-5-5 5-5" />
+            <path d="M19 17l-5-5 5-5" opacity="0.35" />
+          </svg>
+          Logout
+        </button>
       </div>
     </aside>
   );

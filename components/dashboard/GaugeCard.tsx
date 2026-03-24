@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 interface GaugeCardProps {
   title: string;
   value: number;
@@ -7,6 +9,7 @@ interface GaugeCardProps {
   unit?: string;
   color?: 'amber' | 'emerald' | 'blue' | 'red';
   icon?: React.ReactNode;
+  delta?: string;
 }
 
 export function GaugeCard({
@@ -16,6 +19,7 @@ export function GaugeCard({
   unit = '',
   color = 'amber',
   icon,
+  delta,
 }: GaugeCardProps) {
   const percentage = Math.min((value / maxValue) * 100, 100);
   const strokeDasharray = 283;
@@ -23,75 +27,70 @@ export function GaugeCard({
 
   const colorClasses = {
     amber: {
-      stroke: '#d97706',
-      glow: 'drop-shadow-[0_0_8px_rgba(217,119,6,0.5)]',
-      text: 'text-amber-500',
+      stroke: '#ff4f9f',
+      glow: 'drop-shadow-[0_0_10px_rgba(255,79,159,0.42)]',
+      text: 'text-pink-300',
+      soft: 'from-violet-500/20 to-pink-500/16',
     },
     emerald: {
-      stroke: '#10b981',
-      glow: 'drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]',
-      text: 'text-emerald-500',
+      stroke: '#3cf5ff',
+      glow: 'drop-shadow-[0_0_10px_rgba(60,245,255,0.42)]',
+      text: 'text-cyan-300',
+      soft: 'from-violet-500/14 to-slate-700/20',
     },
     blue: {
-      stroke: '#3b82f6',
-      glow: 'drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]',
-      text: 'text-blue-500',
+      stroke: '#8b5cf6',
+      glow: 'drop-shadow-[0_0_10px_rgba(139,92,246,0.42)]',
+      text: 'text-violet-300',
+      soft: 'from-slate-700/20 to-violet-500/16',
     },
     red: {
-      stroke: '#ef4444',
-      glow: 'drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]',
-      text: 'text-red-500',
+      stroke: '#fb7185',
+      glow: 'drop-shadow-[0_0_10px_rgba(251,113,133,0.34)]',
+      text: 'text-rose-200',
+      soft: 'from-violet-500/18 to-pink-500/18',
     },
   };
 
   const colors = colorClasses[color];
 
   return (
-    <div className="relative bg-bg-card border border-zinc-800 rounded p-4 corner-screw">
-      <div className="flex items-center justify-between mb-3">
-        <span className="uppercase-title text-text-muted">{title}</span>
-        {icon && <span className="text-zinc-500">{icon}</span>}
+    <div className={`glass-panel relative overflow-hidden rounded-[18px] bg-gradient-to-br ${colors.soft} p-5`}>
+      <div className="mb-3 flex items-start justify-between">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/6 text-white/45">
+          {icon}
+        </div>
+        {delta && (
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${value >= 0 ? 'bg-emerald-400/14 text-emerald-300' : 'bg-rose-400/14 text-rose-300'}`}>
+            {delta}
+          </span>
+        )}
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative w-20 h-20">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r="45"
-              fill="none"
-              stroke="#1e293b"
-              strokeWidth="6"
-            />
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col">
+          <span className="text-[11px] font-medium text-white/48">{title}</span>
+          <span className="mt-2 text-[38px] font-semibold leading-none text-white">
+            {value.toLocaleString()}
+            {unit && <span className="ml-1 text-[24px] text-white/80">{unit}</span>}
+          </span>
+        </div>
+        <div className="relative h-14 w-14 opacity-18">
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
             <circle
               cx="50"
               cy="50"
               r="45"
               fill="none"
               stroke={colors.stroke}
-              strokeWidth="6"
+              strokeWidth="5"
               strokeLinecap="round"
               strokeDasharray={strokeDasharray}
               strokeDashoffset={strokeDashoffset}
-              className={`transition-all duration-1000 ${colors.glow}`}
+              className={colors.glow}
             />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`font-mono text-lg font-bold ${colors.text}`}>
-              {Math.round(percentage)}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col">
-          <span className={`font-mono text-2xl font-bold ${colors.text}`}>
-            {value.toLocaleString()}
-            <span className="text-sm text-zinc-500 ml-1">{unit}</span>
-          </span>
-          <span className="text-xs text-zinc-500 mt-1">
-            of {maxValue.toLocaleString()} {unit}
-          </span>
         </div>
       </div>
     </div>

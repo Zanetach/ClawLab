@@ -9,11 +9,11 @@ interface StatusDotProps {
 }
 
 const statusColors: Record<AgentStatus, string> = {
-  online: 'bg-emerald-500',
+  online: 'bg-cyan-300',
   offline: 'bg-zinc-500',
-  warning: 'bg-amber-600',
+  warning: 'bg-pink-400',
   error: 'bg-red-500',
-  busy: 'bg-blue-500',
+  busy: 'bg-violet-400',
 };
 
 const sizeClasses = {
