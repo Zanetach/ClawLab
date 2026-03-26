@@ -9,9 +9,10 @@ import { IndustrialButton } from '@/components/ui/IndustrialButton';
 interface AgentTableProps {
   agents: Agent[];
   onDelete?: (agent: Agent) => void;
+  highlightedAgentId?: string | null;
 }
 
-export function AgentTable({ agents, onDelete }: AgentTableProps) {
+export function AgentTable({ agents, onDelete, highlightedAgentId = null }: AgentTableProps) {
   const columns = [
     {
       key: 'id',
@@ -25,9 +26,21 @@ export function AgentTable({ agents, onDelete }: AgentTableProps) {
       key: 'name',
       header: 'Name',
       render: (agent: Agent) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-zinc-200">{agent.name}</span>
+        <div className="flex min-w-0 flex-col">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-zinc-200">{agent.name}</span>
+            {agent.id === highlightedAgentId && (
+              <span className="inline-flex items-center rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
+                New
+              </span>
+            )}
+          </div>
           <span className="text-xs text-zinc-500 uppercase">{agent.role}</span>
+          {agent.workspace && (
+            <span className="mt-1 truncate font-mono text-[11px] text-zinc-500" title={agent.workspace}>
+              {agent.workspace}
+            </span>
+          )}
         </div>
       ),
     },

@@ -10,10 +10,13 @@ import type {
   Agent,
   AgentSyncStatus,
   AgentBootConfig,
+  BotConfigurationMode,
+  EditableAgentConfig,
   AvailableModel,
   BootProvider,
   CreateAgentInput,
   PersonaDraft,
+  UpdateAgentInput,
 } from './types';
 import { getCliAgents } from './openclaw-cli';
 
@@ -27,6 +30,11 @@ type OpenClawAgentEntry = {
   workspace: string;
   model?: string | { primary?: string };
   tools?: JsonRecord;
+  subagents?: {
+    allowAgents?: string[];
+    model?: string | { primary?: string };
+    thinking?: string;
+  };
 };
 
 type OpenClawBinding = {
@@ -53,6 +61,8 @@ type FeishuAccountConfig = {
   appSecret?: string;
   botName?: string;
 };
+
+type ChannelProvider = Extract<BootProvider, 'telegram' | 'feishu'>;
 
 type OpenClawConfig = {
   agents?: {
@@ -117,12 +127,12 @@ function extractJsonPayload(output: string): JsonRecord | unknown[] | null {
 
 function getOpenClawConfigPath(): string {
   const configured = process.env.OPENCLAW_CONFIG_PATH?.trim();
-  return configured || path.join(os.homedir(), '.openclaw', 'openclaw.json');
+  return configured || path.join(/* turbopackIgnore: true */ os.homedir(), '.openclaw', 'openclaw.json');
 }
 
 function getWorkspaceRoot(): string {
   const configured = process.env.OPENCLAW_WORKSPACE_ROOT?.trim();
-  return configured || path.join(os.homedir(), 'Documents', 'clawspace');
+  return configured || path.join(/* turbopackIgnore: true */ os.homedir(), 'Documents', 'clawspace');
 }
 
 async function runOpenClawJson(args: string[]): Promise<JsonRecord | unknown[] | null> {
@@ -140,13 +150,13 @@ async function runOpenClawJson(args: string[]): Promise<JsonRecord | unknown[] |
 
 async function readOpenClawConfig(): Promise<OpenClawConfig> {
   const configPath = getOpenClawConfigPath();
-  const raw = await fs.readFile(configPath, 'utf8');
+  const raw = await fs.readFile(/* turbopackIgnore: true */ configPath, 'utf8');
   return JSON.parse(raw) as OpenClawConfig;
 }
 
 async function writeOpenClawConfig(config: OpenClawConfig): Promise<void> {
   const configPath = getOpenClawConfigPath();
-  await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  await fs.writeFile(/* turbopackIgnore: true */ configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 }
 
 function toTitleCase(value: string): string {
@@ -235,12 +245,12 @@ function normalizeAgentId(input: string): string {
 function resolveWorkspacePath(agentId: string, workspacePath?: string): string {
   const trimmed = workspacePath?.trim();
   if (!trimmed) {
-    return path.join(getWorkspaceRoot(), agentId);
+    return path.join(/* turbopackIgnore: true */ getWorkspaceRoot(), agentId);
   }
 
   return path.isAbsolute(trimmed)
     ? trimmed
-    : path.join(getWorkspaceRoot(), trimmed);
+    : path.join(/* turbopackIgnore: true */ getWorkspaceRoot(), trimmed);
 }
 
 function ensureUniqueAgentId(baseId: string, config: OpenClawConfig): string {
@@ -271,10 +281,140 @@ function normalizeAllowMembers(mode: AccessMode, input?: string[]): Array<string
     });
 }
 
+function stringifyAllowMembers(values?: Array<string | number>): string[] {
+  return (values || []).map((value) => `${value}`);
+}
+
+function getAgentEntry(config: OpenClawConfig, agentId: string): OpenClawAgentEntry | undefined {
+  return (config.agents?.list || []).find((agent) => agent.id === agentId);
+}
+
+function ensureCodingProfileForSubagents(entry: OpenClawAgentEntry): void {
+  const tools = entry.tools && typeof entry.tools === 'object' ? { ...entry.tools } : {};
+  if (typeof tools.profile !== 'string' || tools.profile.trim().length === 0) {
+    tools.profile = 'coding';
+  }
+  entry.tools = tools;
+}
+
+function setSubagentCapability(entry: OpenClawAgentEntry, enabled: boolean): void {
+  if (!enabled) {
+    delete entry.subagents;
+    return;
+  }
+
+  ensureCodingProfileForSubagents(entry);
+  entry.subagents = {
+    ...(entry.subagents || {}),
+    allowAgents: ['*'],
+  };
+}
+
+function getBindingsForAgent(config: OpenClawConfig, agentId: string): OpenClawBinding[] {
+  return (config.bindings || []).filter((binding) => binding.agentId === agentId);
+}
+
+function removeBindingsForAgent(config: OpenClawConfig, agentId: string): OpenClawBinding[] {
+  const existing = config.bindings || [];
+  const removed = existing.filter((binding) => binding.agentId === agentId);
+  config.bindings = existing.filter((binding) => binding.agentId !== agentId);
+  return removed;
+}
+
+function accountReferencedByOtherBindings(
+  config: OpenClawConfig,
+  provider: ChannelProvider,
+  accountId: string,
+  currentAgentId: string
+): boolean {
+  return (config.bindings || []).some((binding) =>
+    binding.agentId !== currentAgentId &&
+    binding.match.channel === provider &&
+    binding.match.accountId === accountId
+  );
+}
+
+function cleanupUnusedAccount(
+  config: OpenClawConfig,
+  provider: ChannelProvider,
+  accountId: string,
+  currentAgentId: string
+): void {
+  if (!accountId || accountReferencedByOtherBindings(config, provider, accountId, currentAgentId)) {
+    return;
+  }
+
+  if (provider === 'telegram') {
+    delete config.channels?.telegram?.accounts?.[accountId];
+    return;
+  }
+
+  delete config.channels?.feishu?.accounts?.[accountId];
+}
+
+function replaceTelegramAccount(
+  config: OpenClawConfig,
+  accountId: string,
+  boot: AgentBootConfig,
+  keepExistingToken = false
+): void {
+  config.channels ??= {};
+  config.channels.telegram ??= {
+    enabled: true,
+    dmPolicy: 'pairing',
+    groupPolicy: 'allowlist',
+    streaming: 'partial',
+    accounts: {},
+  };
+  config.channels.telegram.accounts ??= {};
+
+  const allowMembers = normalizeAllowMembers(boot.accessMode || 'all', boot.allowMembers);
+  const existing = config.channels.telegram.accounts[accountId];
+
+  config.channels.telegram.accounts[accountId] = {
+    ...existing,
+    botToken: keepExistingToken ? existing?.botToken : boot.telegramToken,
+    dmPolicy: (boot.accessMode || 'all') === 'all' ? 'open' : 'allowlist',
+    allowFrom: allowMembers,
+    defaultTo: existing?.defaultTo || '',
+    groupAllowFrom: allowMembers,
+    groupPolicy: (boot.accessMode || 'all') === 'all' ? 'open' : 'allowlist',
+    streaming: existing?.streaming || 'partial',
+  };
+}
+
+function replaceFeishuAccount(
+  config: OpenClawConfig,
+  accountId: string,
+  agentName: string,
+  boot: AgentBootConfig,
+  keepExistingSecret = false
+): void {
+  config.channels ??= {};
+  config.channels.feishu ??= {
+    enabled: true,
+    groups: {
+      '*': {
+        requireMention: true,
+      },
+    },
+    accounts: {},
+  };
+  config.channels.feishu.accounts ??= {};
+
+  const existing = config.channels.feishu.accounts[accountId];
+  config.channels.feishu.accounts[accountId] = {
+    ...existing,
+    appId: boot.feishuAppId,
+    appSecret: keepExistingSecret ? existing?.appSecret : boot.feishuAppSecret,
+    botName: agentName,
+  };
+}
+
 async function ensureWorkspaceFiles(workspace: string, persona: PersonaDraft): Promise<void> {
-  await fs.mkdir(workspace, { recursive: true });
-  await fs.writeFile(path.join(workspace, 'IDENTITY.md'), `${persona.identityMarkdown}\n`, 'utf8');
-  await fs.writeFile(path.join(workspace, 'BOOTSTRAP.md'), `${persona.bootstrapMarkdown}\n`, 'utf8');
+  await fs.mkdir(/* turbopackIgnore: true */ workspace, { recursive: true });
+  await fs.writeFile(path.join(/* turbopackIgnore: true */ workspace, 'IDENTITY.md'), `${persona.identityMarkdown}\n`, 'utf8');
+  await fs.writeFile(path.join(/* turbopackIgnore: true */ workspace, 'BOOTSTRAP.md'), `${persona.bootstrapMarkdown}\n`, 'utf8');
 }
 
 function upsertTelegramAccount(
@@ -292,7 +432,7 @@ function upsertTelegramAccount(
   };
   config.channels.telegram.accounts ??= {};
 
-  const allowMembers = normalizeAllowMembers(boot.accessMode, boot.allowMembers);
+  const allowMembers = normalizeAllowMembers(boot.accessMode ?? 'all', boot.allowMembers);
 
   if (config.channels.telegram.accounts[accountId]) {
     throw new Error(`Telegram account "${accountId}" already exists.`);
@@ -371,14 +511,24 @@ export async function createAgentRecord(input: CreateAgentInput): Promise<Agent>
     workspace,
     model: input.model,
   });
+  const createdEntry = config.agents.list[config.agents.list.length - 1];
+  setSubagentCapability(createdEntry, true);
 
-  if (input.boot.provider === 'telegram') {
-    upsertTelegramAccount(config, accountId, input.boot);
-  } else {
-    upsertFeishuAccount(config, accountId, input.name, input.boot);
+  if ((input.botConfigurationMode || 'now') === 'now' && input.boot.provider) {
+    if (input.boot.provider === 'telegram') {
+      upsertTelegramAccount(config, accountId, {
+        ...input.boot,
+        accessMode: input.boot.accessMode || 'all',
+      });
+    } else {
+      upsertFeishuAccount(config, accountId, input.name, {
+        ...input.boot,
+        accessMode: input.boot.accessMode || 'custom',
+      });
+    }
+
+    upsertBinding(config, agentId, input.boot.provider, accountId);
   }
-
-  upsertBinding(config, agentId, input.boot.provider, accountId);
 
   await ensureWorkspaceFiles(workspace, input.persona);
   await writeOpenClawConfig(config);
@@ -391,17 +541,167 @@ export async function createAgentRecord(input: CreateAgentInput): Promise<Agent>
     persona: 'generated',
     model: input.model,
     workspace,
-    botId: accountId,
-    botName: `${input.boot.provider === 'telegram' ? 'Telegram' : 'Feishu'} / ${accountId}`,
+    botId: (input.botConfigurationMode || 'now') === 'now' ? accountId : undefined,
+    botName: (input.botConfigurationMode || 'now') === 'now' && input.boot.provider
+      ? `${input.boot.provider === 'telegram' ? 'Telegram' : 'Feishu'} / ${accountId}`
+      : undefined,
     status: 'online',
     tokenUsage: 0,
     maxTokens: 100000,
     createdAt: now,
     lastActive: now,
     bootProvider: input.boot.provider,
-    bootAccountId: accountId,
+    bootAccountId: (input.botConfigurationMode || 'now') === 'now' ? accountId : undefined,
     bootAccessMode: input.boot.accessMode,
   };
+}
+
+export async function getEditableAgentConfig(agentId: string): Promise<EditableAgentConfig | null> {
+  const config = await readOpenClawConfig();
+  const entry = getAgentEntry(config, agentId);
+  if (!entry) {
+    return null;
+  }
+
+  const binding = getBindingsForAgent(config, agentId).find((item) =>
+    item.match.channel === 'telegram' || item.match.channel === 'feishu'
+  );
+
+  if (!binding || !binding.match.accountId || (binding.match.channel !== 'telegram' && binding.match.channel !== 'feishu')) {
+    return {
+      agentId,
+      workspacePath: entry.workspace,
+      model: typeof entry.model === 'string' ? entry.model : entry.model?.primary || '',
+      botConfigurationMode: 'later',
+      boot: {
+        provider: 'telegram',
+        accountId: '',
+        accessMode: 'all',
+        allowMembers: [],
+        hasToken: false,
+        hasAppSecret: false,
+      },
+    };
+  }
+
+  const provider = binding.match.channel;
+  const accountId = binding.match.accountId;
+
+  if (provider === 'telegram') {
+    const telegram = config.channels?.telegram?.accounts?.[accountId];
+    return {
+      agentId,
+      workspacePath: entry.workspace,
+      model: typeof entry.model === 'string' ? entry.model : entry.model?.primary || '',
+      botConfigurationMode: 'now',
+      boot: {
+        provider,
+        accountId,
+        accessMode: telegram?.groupPolicy === 'open' ? 'all' : 'custom',
+        allowMembers: stringifyAllowMembers(telegram?.groupPolicy === 'open' ? [] : telegram?.groupAllowFrom || telegram?.allowFrom),
+        hasToken: !!telegram?.botToken,
+        hasAppSecret: false,
+      },
+    };
+  }
+
+  const feishu = config.channels?.feishu?.accounts?.[accountId];
+  return {
+    agentId,
+    workspacePath: entry.workspace,
+    model: typeof entry.model === 'string' ? entry.model : entry.model?.primary || '',
+    botConfigurationMode: 'now',
+    boot: {
+      provider,
+      accountId,
+      accessMode: 'custom',
+      allowMembers: [],
+      hasToken: false,
+      hasAppSecret: !!feishu?.appSecret,
+      feishuAppId: feishu?.appId,
+    },
+  };
+}
+
+function validateBootConfig(mode: BotConfigurationMode, boot: AgentBootConfig): void {
+  if (mode === 'later') {
+    return;
+  }
+
+  if (!boot.provider) {
+    throw new Error('Boot provider is required.');
+  }
+}
+
+export async function updateAgentRecord(agentId: string, input: UpdateAgentInput): Promise<void> {
+  const config = await readOpenClawConfig();
+  const entry = getAgentEntry(config, agentId);
+  if (!entry) {
+    throw new Error(`Agent "${agentId}" not found.`);
+  }
+
+  const mode = input.botConfigurationMode || 'now';
+  validateBootConfig(mode, input.boot);
+
+  entry.workspace = resolveWorkspacePath(agentId, input.workspacePath);
+  entry.model = input.model;
+  setSubagentCapability(entry, true);
+  await fs.mkdir(/* turbopackIgnore: true */ entry.workspace, { recursive: true });
+
+  const removedBindings = removeBindingsForAgent(config, agentId);
+  for (const binding of removedBindings) {
+    const provider = binding.match.channel;
+    const accountId = binding.match.accountId;
+    if ((provider === 'telegram' || provider === 'feishu') && accountId) {
+      cleanupUnusedAccount(config, provider, accountId, agentId);
+    }
+  }
+
+  if (mode === 'later' || !input.boot.provider) {
+    await writeOpenClawConfig(config);
+    return;
+  }
+
+  const accountId = input.boot.accountId?.trim() || agentId;
+  const previousConfig = await getEditableAgentConfig(agentId);
+  const keepExistingToken =
+    input.boot.provider === 'telegram' &&
+    previousConfig?.botConfigurationMode === 'now' &&
+    previousConfig.boot.provider === 'telegram' &&
+    previousConfig.boot.accountId === accountId &&
+    !input.boot.telegramToken?.trim();
+  const keepExistingSecret =
+    input.boot.provider === 'feishu' &&
+    previousConfig?.botConfigurationMode === 'now' &&
+    previousConfig.boot.provider === 'feishu' &&
+    previousConfig.boot.accountId === accountId &&
+    !input.boot.feishuAppSecret?.trim();
+
+  if (input.boot.provider === 'telegram') {
+    replaceTelegramAccount(
+      config,
+      accountId,
+      {
+        ...input.boot,
+        accessMode: input.boot.accessMode || 'all',
+      },
+      keepExistingToken
+    );
+  } else {
+    replaceFeishuAccount(
+      config,
+      accountId,
+      agentId,
+      {
+        ...input.boot,
+        accessMode: 'custom',
+      },
+      keepExistingSecret
+    );
+  }
+
+  upsertBinding(config, agentId, input.boot.provider, accountId);
+  await writeOpenClawConfig(config);
 }
 
 export async function getAgentBindingMeta(): Promise<Map<string, AgentBindingMeta>> {
@@ -477,6 +777,15 @@ export async function getConfiguredAgentEntries(): Promise<Array<{
     workspace: agent.workspace,
     model: agent.model,
   }));
+}
+
+export async function getConfiguredAgentEntry(agentId: string): Promise<{
+  id: string;
+  workspace: string;
+  model?: string | { primary?: string };
+} | null> {
+  const entries = await getConfiguredAgentEntries();
+  return entries.find((agent) => agent.id === agentId) ?? null;
 }
 
 export async function getAgentSyncStatus(agentId: string): Promise<AgentSyncStatus> {

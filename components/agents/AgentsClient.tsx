@@ -55,7 +55,7 @@ export function AgentsClient({
 
   useVisibleInterval(refreshAgents, {
     intervalMs: 10_000,
-    runImmediately: initialAgents.length === 0,
+    runImmediately: initialAgents.length === 0 || !!createdAgentId,
   });
 
   useVisibleInterval(() => {
@@ -78,6 +78,14 @@ export function AgentsClient({
       };
     }
   }, [createdAgentId, router, syncStatus?.synced]);
+
+  const orderedAgents = createdAgentId
+    ? [...agents].sort((left, right) => {
+        if (left.id === createdAgentId) return -1;
+        if (right.id === createdAgentId) return 1;
+        return left.name.localeCompare(right.name);
+      })
+    : agents;
 
   return (
     <div className="p-6">
@@ -120,6 +128,12 @@ export function AgentsClient({
         </div>
       )}
 
+      {createdAgentId && !orderedAgents.some((agent) => agent.id === createdAgentId) && (
+        <div className="mb-6 rounded-[22px] border border-zinc-700 bg-zinc-900/60 p-4 text-sm text-zinc-300">
+          已创建 Agent <span className="font-mono text-cyan-200">{createdAgentId}</span>，列表正在刷新。
+        </div>
+      )}
+
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Total Agents" value={agents.length} />
         <StatCard label="Online" value={agents.filter((agent) => agent.status === 'online').length} color="emerald" />
@@ -132,7 +146,7 @@ export function AgentsClient({
           <div className="text-zinc-500">Loading agents...</div>
         </div>
       ) : (
-        <AgentTable agents={agents} />
+        <AgentTable agents={orderedAgents} highlightedAgentId={createdAgentId} />
       )}
     </div>
   );

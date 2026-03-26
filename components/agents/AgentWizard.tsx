@@ -8,6 +8,7 @@ import type {
   AccessMode,
   AgentRole,
   AvailableModel,
+  BotConfigurationMode,
   BootProvider,
   CreateAgentInput,
   PersonaDraft,
@@ -16,6 +17,7 @@ import type {
 interface AgentWizardProps {
   onComplete: (data: CreateAgentInput) => void;
   onCancel: () => void;
+  submitting?: boolean;
 }
 
 export interface AgentFormData {
@@ -25,6 +27,7 @@ export interface AgentFormData {
   role: AgentRole;
   model: string;
   persona: PersonaDraft;
+  botConfigurationMode: BotConfigurationMode;
   boot: {
     provider: BootProvider;
     accountId: string;
@@ -69,7 +72,7 @@ function parseAllowMembers(value: string): string[] {
     .filter(Boolean);
 }
 
-export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
+export function AgentWizard({ onComplete, onCancel, submitting = false }: AgentWizardProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
@@ -84,6 +87,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
       identityMarkdown: '',
       bootstrapMarkdown: '',
     },
+    botConfigurationMode: 'now',
     boot: {
       provider: 'telegram',
       accountId: '',
@@ -136,15 +140,16 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
 
   const personaDraft = useMemo(
     () => createPersonaDraft(formData.name || '未命名 Agent', formData.model, {
-      provider: formData.boot.provider,
-      accountId: formData.boot.accountId || effectiveAgentId,
-      accessMode: formData.boot.accessMode,
-      allowMembers: parseAllowMembers(formData.boot.allowMembersText),
-      telegramToken: formData.boot.telegramToken,
-      feishuAppId: formData.boot.feishuAppId,
-      feishuAppSecret: formData.boot.feishuAppSecret,
+      provider: formData.botConfigurationMode === 'now' ? formData.boot.provider : undefined,
+      accountId: formData.botConfigurationMode === 'now' ? formData.boot.accountId || effectiveAgentId : undefined,
+      accessMode: formData.botConfigurationMode === 'now' ? formData.boot.accessMode : undefined,
+      allowMembers: formData.botConfigurationMode === 'now' ? parseAllowMembers(formData.boot.allowMembersText) : [],
+      telegramToken: formData.botConfigurationMode === 'now' ? formData.boot.telegramToken : undefined,
+      feishuAppId: formData.botConfigurationMode === 'now' ? formData.boot.feishuAppId : undefined,
+      feishuAppSecret: formData.botConfigurationMode === 'now' ? formData.boot.feishuAppSecret : undefined,
     }),
     [
+      formData.botConfigurationMode,
       effectiveAgentId,
       formData.boot.accessMode,
       formData.boot.accountId,
@@ -171,6 +176,9 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
       case 3:
         return !!formData.persona.identityMarkdown && !!formData.persona.bootstrapMarkdown;
       case 4:
+        if (formData.botConfigurationMode === 'later') {
+          return true;
+        }
         if (formData.boot.provider === 'telegram') {
           return formData.boot.telegramToken.trim().length > 0;
         }
@@ -195,14 +203,15 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
       role: formData.role,
       model: formData.model,
       persona: formData.persona,
+      botConfigurationMode: formData.botConfigurationMode,
       boot: {
-        provider: formData.boot.provider,
-        accountId: formData.boot.accountId.trim() || effectiveAgentId,
-        accessMode: formData.boot.accessMode,
-        allowMembers: parseAllowMembers(formData.boot.allowMembersText),
-        telegramToken: formData.boot.telegramToken.trim(),
-        feishuAppId: formData.boot.feishuAppId.trim(),
-        feishuAppSecret: formData.boot.feishuAppSecret.trim(),
+        provider: formData.botConfigurationMode === 'now' ? formData.boot.provider : undefined,
+        accountId: formData.botConfigurationMode === 'now' ? formData.boot.accountId.trim() || effectiveAgentId : undefined,
+        accessMode: formData.botConfigurationMode === 'now' ? formData.boot.accessMode : undefined,
+        allowMembers: formData.botConfigurationMode === 'now' ? parseAllowMembers(formData.boot.allowMembersText) : [],
+        telegramToken: formData.botConfigurationMode === 'now' ? formData.boot.telegramToken.trim() : undefined,
+        feishuAppId: formData.botConfigurationMode === 'now' ? formData.boot.feishuAppId.trim() : undefined,
+        feishuAppSecret: formData.botConfigurationMode === 'now' ? formData.boot.feishuAppSecret.trim() : undefined,
       },
     });
   };
@@ -220,7 +229,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
     : '仅白名单成员可进入组，支持 ID、用户名或外部标识。';
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="relative mx-auto max-w-3xl">
       <div className="mb-8 flex items-center justify-between">
         {STEPS.map((step, index) => (
           <div key={step.id} className="flex items-center">
@@ -253,7 +262,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
         ))}
       </div>
 
-      <div className="glass-panel mb-6 rounded-[28px] p-6">
+      <div className={`glass-panel mb-6 rounded-[28px] p-6 transition-opacity ${submitting ? 'opacity-75' : ''}`}>
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-zinc-100">{STEPS[currentStep - 1].title}</h2>
           <p className="mt-1 text-sm text-zinc-400">{STEPS[currentStep - 1].description}</p>
@@ -269,6 +278,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                 onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                 placeholder="例如：迪赛娜"
                 className="w-full"
+                disabled={submitting}
                 autoFocus
               />
               <p className="mt-2 text-xs text-zinc-500">输入的角色名称会直接作为 Agent 名称。</p>
@@ -282,6 +292,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                 onChange={(event) => setFormData({ ...formData, agentId: event.target.value })}
                 placeholder={draftAgentId}
                 className="w-full"
+                disabled={submitting}
               />
               <p className="mt-2 text-xs text-zinc-500">
                 默认按角色名称自动生成，也支持手动输入。实际将使用：{effectiveAgentId}
@@ -296,6 +307,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                 onChange={(event) => setFormData({ ...formData, workspacePath: event.target.value })}
                 placeholder={`例如：${effectiveAgentId} 或 /Users/zane/Documents/clawspace/${effectiveAgentId}`}
                 className="w-full"
+                disabled={submitting}
               />
               <p className="mt-2 text-xs text-zinc-500">
                 留空时默认使用系统工作区并按 Agent ID 创建目录。支持绝对路径，或相对于默认 workspace root 的相对路径。
@@ -308,6 +320,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                   key={role.value}
                   type="button"
                   onClick={() => setFormData({ ...formData, role: role.value })}
+                  disabled={submitting}
                   className={formData.role === role.value
                     ? 'rounded border border-cyan-300/24 bg-[linear-gradient(135deg,rgba(60,245,255,0.12)_0%,rgba(139,92,246,0.12)_58%,rgba(255,79,159,0.1)_100%)] p-4 text-left transition-all'
                     : 'rounded border border-white/10 bg-white/[0.04] p-4 text-left transition-all hover:border-white/18'}
@@ -319,6 +332,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                 </button>
               ))}
             </div>
+
           </div>
         )}
 
@@ -331,6 +345,7 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                 key={model.id}
                 type="button"
                 onClick={() => setFormData({ ...formData, model: model.id })}
+                disabled={submitting}
                 className={formData.model === model.id
                   ? 'w-full rounded border border-cyan-300/24 bg-[linear-gradient(135deg,rgba(60,245,255,0.12)_0%,rgba(139,92,246,0.12)_58%,rgba(255,79,159,0.1)_100%)] p-4 text-left transition-all'
                   : 'w-full rounded border border-white/10 bg-white/[0.04] p-4 text-left transition-all hover:border-white/18'}
@@ -377,114 +392,156 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
             <div className="grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, boot: { ...formData.boot, provider: 'telegram' } })}
-                className={formData.boot.provider === 'telegram'
+                onClick={() => setFormData({ ...formData, botConfigurationMode: 'now' })}
+                disabled={submitting}
+                className={formData.botConfigurationMode === 'now'
                   ? 'rounded border border-cyan-300/24 bg-[linear-gradient(135deg,rgba(60,245,255,0.12)_0%,rgba(139,92,246,0.12)_58%,rgba(255,79,159,0.1)_100%)] p-4 text-left'
                   : 'rounded border border-white/10 bg-white/[0.04] p-4 text-left'}
               >
-                <div className="text-sm font-semibold text-zinc-100">Telegram</div>
-                <div className="mt-1 text-xs text-zinc-400">适合 TG Bot Token 和群组准入配置</div>
+                <div className="text-sm font-semibold text-zinc-100">立即配置</div>
+                <div className="mt-1 text-xs text-zinc-400">创建时直接绑定 bot，保存后即可使用</div>
               </button>
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, boot: { ...formData.boot, provider: 'feishu' } })}
-                className={formData.boot.provider === 'feishu'
+                onClick={() => setFormData({ ...formData, botConfigurationMode: 'later' })}
+                disabled={submitting}
+                className={formData.botConfigurationMode === 'later'
                   ? 'rounded border border-cyan-300/24 bg-[linear-gradient(135deg,rgba(60,245,255,0.12)_0%,rgba(139,92,246,0.12)_58%,rgba(255,79,159,0.1)_100%)] p-4 text-left'
                   : 'rounded border border-white/10 bg-white/[0.04] p-4 text-left'}
               >
-                <div className="text-sm font-semibold text-zinc-100">飞书</div>
-                <div className="mt-1 text-xs text-zinc-400">适合企业内部协作和组织接入</div>
+                <div className="text-sm font-semibold text-zinc-100">稍后配置</div>
+                <div className="mt-1 text-xs text-zinc-400">先创建 Agent，后续再到详情页补充 bot</div>
               </button>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Account ID</label>
-                <input
-                  type="text"
-                  value={formData.boot.accountId}
-                  onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, accountId: event.target.value } })}
-                  placeholder={draftAgentId}
-                  className="w-full"
-                />
-                <p className="mt-2 text-xs text-zinc-500">为空时默认使用 Agent ID：{effectiveAgentId}</p>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">权限模式</label>
-                <div className="grid grid-cols-2 gap-3">
+            {formData.botConfigurationMode === 'now' ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, boot: { ...formData.boot, accessMode: 'all' } })}
-                    className={formData.boot.accessMode === 'all' ? 'rounded border border-cyan-300/24 bg-cyan-300/10 p-3 text-sm text-cyan-200' : 'rounded border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300'}
+                    onClick={() => setFormData({ ...formData, boot: { ...formData.boot, provider: 'telegram' } })}
+                    disabled={submitting}
+                    className={formData.boot.provider === 'telegram'
+                      ? 'rounded border border-cyan-300/24 bg-[linear-gradient(135deg,rgba(60,245,255,0.12)_0%,rgba(139,92,246,0.12)_58%,rgba(255,79,159,0.1)_100%)] p-4 text-left'
+                      : 'rounded border border-white/10 bg-white/[0.04] p-4 text-left'}
                   >
-                    All
+                    <div className="text-sm font-semibold text-zinc-100">Telegram</div>
+                    <div className="mt-1 text-xs text-zinc-400">适合 TG Bot Token 和群组准入配置</div>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, boot: { ...formData.boot, accessMode: 'custom' } })}
-                    className={formData.boot.accessMode === 'custom' ? 'rounded border border-cyan-300/24 bg-cyan-300/10 p-3 text-sm text-cyan-200' : 'rounded border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300'}
+                    onClick={() => setFormData({ ...formData, boot: { ...formData.boot, provider: 'feishu' } })}
+                    disabled={submitting}
+                    className={formData.boot.provider === 'feishu'
+                      ? 'rounded border border-cyan-300/24 bg-[linear-gradient(135deg,rgba(60,245,255,0.12)_0%,rgba(139,92,246,0.12)_58%,rgba(255,79,159,0.1)_100%)] p-4 text-left'
+                      : 'rounded border border-white/10 bg-white/[0.04] p-4 text-left'}
                   >
-                    Custom
+                    <div className="text-sm font-semibold text-zinc-100">飞书</div>
+                    <div className="mt-1 text-xs text-zinc-400">适合企业内部协作和组织接入</div>
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-zinc-500">{accessHint}</p>
-              </div>
-            </div>
 
-            {formData.boot.provider === 'telegram' ? (
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Telegram Bot Token</label>
-                <input
-                  type="password"
-                  value={formData.boot.telegramToken}
-                  onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, telegramToken: event.target.value } })}
-                  placeholder="123456:ABC..."
-                  className="w-full"
-                />
-              </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Account ID</label>
+                    <input
+                      type="text"
+                      value={formData.boot.accountId}
+                      onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, accountId: event.target.value } })}
+                      placeholder={draftAgentId}
+                      className="w-full"
+                      disabled={submitting}
+                    />
+                    <p className="mt-2 text-xs text-zinc-500">为空时默认使用 Agent ID：{effectiveAgentId}</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">权限模式</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, boot: { ...formData.boot, accessMode: 'all' } })}
+                        disabled={submitting}
+                        className={formData.boot.accessMode === 'all' ? 'rounded border border-cyan-300/24 bg-cyan-300/10 p-3 text-sm text-cyan-200' : 'rounded border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300'}
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, boot: { ...formData.boot, accessMode: 'custom' } })}
+                        disabled={submitting}
+                        className={formData.boot.accessMode === 'custom' ? 'rounded border border-cyan-300/24 bg-cyan-300/10 p-3 text-sm text-cyan-200' : 'rounded border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300'}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-500">{accessHint}</p>
+                  </div>
+                </div>
+
+                {formData.boot.provider === 'telegram' ? (
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Telegram Bot Token</label>
+                    <input
+                      type="password"
+                      value={formData.boot.telegramToken}
+                      onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, telegramToken: event.target.value } })}
+                      placeholder="123456:ABC..."
+                      className="w-full"
+                      disabled={submitting}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Feishu App ID</label>
+                      <input
+                        type="text"
+                        value={formData.boot.feishuAppId}
+                        onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, feishuAppId: event.target.value } })}
+                        placeholder="cli_xxx"
+                        className="w-full"
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Feishu App Secret</label>
+                      <input
+                        type="password"
+                        value={formData.boot.feishuAppSecret}
+                        onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, feishuAppSecret: event.target.value } })}
+                        placeholder="App Secret"
+                        className="w-full"
+                        disabled={submitting}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {formData.boot.accessMode === 'custom' && (
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">允许成员列表</label>
+                    <textarea
+                      value={formData.boot.allowMembersText}
+                      onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, allowMembersText: event.target.value } })}
+                      placeholder="每行一个成员 ID / 用户名，也支持逗号分隔"
+                      className="min-h-28 w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/30"
+                      disabled={submitting}
+                    />
+                  </div>
+                )}
+
+                <div className="glass-badge rounded-[20px] p-4 text-xs text-zinc-400">
+                  当前 bot 将写入 <span className="font-mono text-zinc-200">{formData.boot.provider}</span> 账户
+                  <span className="mx-2 text-zinc-600">/</span>
+                  <span className="font-mono text-zinc-200">{effectiveAccountId}</span>
+                </div>
+              </>
             ) : (
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Feishu App ID</label>
-                  <input
-                    type="text"
-                    value={formData.boot.feishuAppId}
-                    onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, feishuAppId: event.target.value } })}
-                    placeholder="cli_xxx"
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">Feishu App Secret</label>
-                  <input
-                    type="password"
-                    value={formData.boot.feishuAppSecret}
-                    onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, feishuAppSecret: event.target.value } })}
-                    placeholder="App Secret"
-                    className="w-full"
-                  />
-                </div>
+              <div className="rounded-[20px] border border-dashed border-white/12 bg-white/[0.03] p-4 text-sm text-zinc-400">
+                当前将跳过 bot 绑定。Agent 会先按 workspace 和 model 创建完成，之后可在详情页立即补充 Telegram 或飞书配置。
               </div>
             )}
-
-            {formData.boot.accessMode === 'custom' && (
-              <div>
-                <label className="mb-2 block text-xs uppercase tracking-wider text-zinc-500">允许成员列表</label>
-                <textarea
-                  value={formData.boot.allowMembersText}
-                  onChange={(event) => setFormData({ ...formData, boot: { ...formData.boot, allowMembersText: event.target.value } })}
-                  placeholder="每行一个成员 ID / 用户名，也支持逗号分隔"
-                  className="min-h-28 w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-300/30"
-                />
-              </div>
-            )}
-
-            <div className="glass-badge rounded-[20px] p-4 text-xs text-zinc-400">
-              当前 bot 将写入 <span className="font-mono text-zinc-200">{formData.boot.provider}</span> 账户
-              <span className="mx-2 text-zinc-600">/</span>
-              <span className="font-mono text-zinc-200">{effectiveAccountId}</span>
-            </div>
           </div>
         )}
 
@@ -498,12 +555,15 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
                 value={formData.workspacePath.trim() || `默认：<workspace-root>/${effectiveAgentId}`}
               />
               <ReviewField label="模型" value={selectedModel ? `${selectedModel.label} (${selectedModel.id})` : formData.model} />
-              <ReviewField label="Bot Provider" value={formData.boot.provider} />
-              <ReviewField label="Bot Account" value={effectiveAccountId} />
-              <ReviewField label="权限模式" value={formData.boot.accessMode === 'all' ? 'all' : 'custom'} />
+              <ReviewField label="Bot 配置" value={formData.botConfigurationMode === 'now' ? '立即配置' : '稍后配置'} />
+              <ReviewField label="Bot Provider" value={formData.botConfigurationMode === 'now' ? formData.boot.provider : '稍后配置'} />
+              <ReviewField label="Bot Account" value={formData.botConfigurationMode === 'now' ? effectiveAccountId : '暂不配置'} />
+              <ReviewField label="权限模式" value={formData.botConfigurationMode === 'now' ? (formData.boot.accessMode === 'all' ? 'all' : 'custom') : '暂不配置'} />
               <ReviewField
                 label="权限范围"
-                value={formData.boot.accessMode === 'all' ? '允许所有成员加入组' : parseAllowMembers(formData.boot.allowMembersText).join(', ') || '未填写'}
+                value={formData.botConfigurationMode === 'now'
+                  ? (formData.boot.accessMode === 'all' ? '允许所有成员加入组' : parseAllowMembers(formData.boot.allowMembersText).join(', ') || '未填写')
+                  : '暂不配置'}
               />
             </div>
             <div className="h-px rounded bg-gradient-to-r from-transparent via-cyan-300/40 via-50% to-transparent" />
@@ -515,12 +575,12 @@ export function AgentWizard({ onComplete, onCancel }: AgentWizardProps) {
       </div>
 
       <div className="flex items-center justify-between">
-        <IndustrialButton variant="secondary" onClick={currentStep === 1 ? onCancel : handleBack}>
+        <IndustrialButton variant="secondary" onClick={currentStep === 1 ? onCancel : handleBack} disabled={submitting}>
           {currentStep === 1 ? '取消' : '上一步'}
         </IndustrialButton>
 
-        <IndustrialButton variant="primary" onClick={handleNext} disabled={!canProceed()}>
-          {currentStep === 5 ? '创建 Agent' : '下一步'}
+        <IndustrialButton variant="primary" onClick={handleNext} disabled={submitting || !canProceed()}>
+          {currentStep === 5 ? (submitting ? '创建中...' : '创建 Agent') : '下一步'}
         </IndustrialButton>
       </div>
     </div>

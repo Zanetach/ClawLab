@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AgentWizard } from '@/components/agents/AgentWizard';
 import { createAgent } from '@/lib/gateway';
@@ -10,6 +10,7 @@ export function NewAgentClient() {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNavigating, startTransition] = useTransition();
 
   const handleComplete = async (data: CreateAgentInput) => {
     setCreating(true);
@@ -17,7 +18,14 @@ export function NewAgentClient() {
 
     try {
       const created = await createAgent(data);
-      router.push(`/agents?created=${encodeURIComponent(created.id)}`);
+      startTransition(() => {
+        if (window.history.length > 1) {
+          router.back();
+          return;
+        }
+
+        router.push(`/agents?created=${encodeURIComponent(created.id)}`);
+      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Failed to create agent. Please try again.');
       setCreating(false);
@@ -48,14 +56,28 @@ export function NewAgentClient() {
         </div>
       )}
 
-      {creating ? (
-        <div className="flex h-64 flex-col items-center justify-center">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-          <div className="text-zinc-400">Creating agent...</div>
+      {creating && (
+        <div className="mb-6 rounded-[22px] border border-cyan-300/30 bg-cyan-400/10 p-4 text-sm text-cyan-100">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="font-medium">正在创建 Agent</div>
+              <div className="mt-1 text-xs text-cyan-100/80">
+                正在写入配置并返回上一页。
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
+              <div className="h-4 w-4 animate-spin rounded-full border border-current border-t-transparent" />
+              <span>{isNavigating ? 'Returning' : 'In Progress'}</span>
+            </div>
+          </div>
         </div>
-      ) : (
-        <AgentWizard onComplete={handleComplete} onCancel={handleCancel} />
       )}
+
+      <AgentWizard
+        onComplete={handleComplete}
+        onCancel={handleCancel}
+        submitting={creating || isNavigating}
+      />
     </div>
   );
 }

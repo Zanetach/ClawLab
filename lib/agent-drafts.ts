@@ -1,8 +1,12 @@
 import type { AgentBootConfig, PersonaDraft } from './types';
 
 export function createPersonaDraft(name: string, model: string, boot: AgentBootConfig): PersonaDraft {
-  const providerLabel = boot.provider === 'telegram' ? 'Telegram' : 'Feishu';
-  const accessModeLabel = boot.accessMode === 'all' ? '允许所有成员加入组' : '仅允许白名单成员';
+  const providerLabel = !boot.provider ? '稍后配置' : boot.provider === 'telegram' ? 'Telegram' : 'Feishu';
+  const accessModeLabel = !boot.provider
+    ? '尚未配置'
+    : boot.accessMode === 'all'
+      ? '允许所有成员加入组'
+      : '仅允许白名单成员';
   const modelLabel = model.trim() || '未选择模型';
 
   return {
@@ -37,8 +41,14 @@ export function createPersonaDraft(name: string, model: string, boot: AgentBootC
       '',
       '## 渠道说明',
       '',
-      `当前入口由 ${providerLabel} 提供。`,
-      boot.accountId ? `Account ID: \`${boot.accountId}\`` : 'Account ID 将在创建时自动生成。',
+      !boot.provider
+        ? '当前未立即配置 Bot 入口，可在创建完成后补充。'
+        : `当前入口由 ${providerLabel} 提供。`,
+      !boot.provider
+        ? 'Account ID 暂未设置。'
+        : boot.accountId
+          ? `Account ID: \`${boot.accountId}\``
+          : 'Account ID 将在创建时自动生成。',
       '',
       '## 生效说明',
       '',

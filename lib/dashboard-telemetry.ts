@@ -1,7 +1,8 @@
 import 'server-only';
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { getLocalStatePath } from './local-state-path';
 import type { Agent, TelemetryMode, TokenHistoryPoint } from './types';
 
 interface TelemetryStore {
@@ -9,7 +10,7 @@ interface TelemetryStore {
 }
 
 const MAX_POINTS = 24;
-const STORE_PATH = join(process.cwd(), '.clawlab', 'dashboard-telemetry.json');
+const STORE_PATH = getLocalStatePath('dashboard-telemetry.json');
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

@@ -32,6 +32,18 @@ const navItems = [
     ),
   },
   {
+    label: 'Chat',
+    href: '/chat',
+    enabled: false,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5z" />
+        <path d="M8 9h8" />
+        <path d="M8 12h5" />
+      </svg>
+    ),
+  },
+  {
     label: 'Bots',
     href: '/bots',
     enabled: false,

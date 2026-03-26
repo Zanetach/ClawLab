@@ -3,6 +3,7 @@ export type AgentRole = 'coordinator' | 'executor' | 'observer' | 'custom';
 export type BootProvider = 'telegram' | 'feishu';
 export type AccessMode = 'all' | 'custom';
 export type GatewayConnectionMode = 'auto' | 'manual';
+export type BotConfigurationMode = 'now' | 'later';
 
 export interface Agent {
   id: string;
@@ -37,9 +38,9 @@ export interface PersonaDraft {
 }
 
 export interface AgentBootConfig {
-  provider: BootProvider;
+  provider?: BootProvider;
   accountId?: string;
-  accessMode: AccessMode;
+  accessMode?: AccessMode;
   allowMembers?: string[];
   telegramToken?: string;
   feishuAppId?: string;
@@ -54,6 +55,30 @@ export interface CreateAgentInput {
   model: string;
   persona: PersonaDraft;
   boot: AgentBootConfig;
+  botConfigurationMode?: BotConfigurationMode;
+}
+
+export interface UpdateAgentInput {
+  workspacePath?: string;
+  model: string;
+  boot: AgentBootConfig;
+  botConfigurationMode?: BotConfigurationMode;
+}
+
+export interface EditableAgentConfig {
+  agentId: string;
+  workspacePath: string;
+  model: string;
+  botConfigurationMode: BotConfigurationMode;
+  boot: {
+    provider: BootProvider;
+    accountId: string;
+    accessMode: AccessMode;
+    allowMembers: string[];
+    hasToken: boolean;
+    hasAppSecret: boolean;
+    feishuAppId?: string;
+  };
 }
 
 export interface AgentSyncStatus {
@@ -61,6 +86,44 @@ export interface AgentSyncStatus {
   synced: boolean;
   checkedAt: string;
   message: string;
+}
+
+export type ChatMessageRole = 'user' | 'assistant' | 'system';
+
+export interface ChatMessage {
+  id: string;
+  role: ChatMessageRole;
+  content: string;
+  createdAt: string;
+}
+
+export interface ChatSessionSummary {
+  id: string;
+  agentId: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  messageCount: number;
+  kind: 'direct' | 'group' | 'unknown';
+  model?: string;
+  totalTokens?: number | null;
+}
+
+export interface ChatSessionDetail extends ChatSessionSummary {
+  messages: ChatMessage[];
+}
+
+export type ChatRunState = 'idle' | 'running' | 'completed' | 'failed' | 'stopped';
+
+export interface ChatRunStatus {
+  sessionId: string;
+  agentId: string;
+  state: ChatRunState;
+  startedAt: string | null;
+  finishedAt: string | null;
+  pid: number | null;
+  error?: string | null;
+  output?: string | null;
 }
 
 export interface GatewayStatus {

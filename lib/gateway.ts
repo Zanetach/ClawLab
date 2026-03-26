@@ -7,8 +7,13 @@ import {
   AvailableModel,
   CreateAgentInput,
   AgentSyncStatus,
+  EditableAgentConfig,
   GatewayConnectionConfig,
   GatewayConnectionState,
+  UpdateAgentInput,
+  ChatSessionSummary,
+  ChatSessionDetail,
+  ChatRunStatus,
 } from './types';
 import { createFallbackSnapshot, type DashboardSnapshot } from './gateway-core';
 
@@ -94,13 +99,39 @@ export async function getAgents(): Promise<Agent[]> {
   return fetchJson<Agent[]>('/api/agents');
 }
 
+export async function getChatAgents(): Promise<Agent[]> {
+  return fetchJson<Agent[]>('/api/agents?method=chat', {
+    dedupe: false,
+    cacheTtlMs: 0,
+  });
+}
+
 export async function getAgent(id: string): Promise<Agent | null> {
-  const agents = await getAgents();
-  return agents.find(a => a.id === id) || null;
+  const response = await fetch(`/api/agents?method=agent&agentId=${encodeURIComponent(id)}`, {
+    method: 'GET',
+    cache: 'no-store',
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<Agent>;
 }
 
 export async function getAvailableModels(): Promise<AvailableModel[]> {
   return fetchJson<AvailableModel[]>('/api/agents?method=models');
+}
+
+export async function getEditableAgentConfig(agentId: string): Promise<EditableAgentConfig> {
+  return fetchJson<EditableAgentConfig>(`/api/agents?method=detail&agentId=${encodeURIComponent(agentId)}`, {
+    dedupe: false,
+    cacheTtlMs: 0,
+  });
 }
 
 export async function getAgentSyncStatus(agentId: string): Promise<AgentSyncStatus> {
@@ -125,6 +156,27 @@ export async function createAgent(data: CreateAgentInput): Promise<Agent> {
   const agent = await response.json() as Agent;
   invalidateClientGatewayCache();
   return agent;
+}
+
+export async function updateAgent(agentId: string, data: UpdateAgentInput): Promise<void> {
+  const response = await fetch('/api/agents', {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      agentId,
+      ...data,
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = typeof payload?.error === 'string' ? payload.error : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  invalidateClientGatewayCache();
 }
 
 export async function getGatewayConnectionState(): Promise<GatewayConnectionState> {
@@ -195,4 +247,69 @@ export async function getAlerts(): Promise<Alert[]> {
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   return fetchJson<DashboardSummary>('/api/dashboard-summary');
+}
+
+export async function getChatSessions(): Promise<ChatSessionSummary[]> {
+  return fetchJson<ChatSessionSummary[]>('/api/chat/sessions', {
+    dedupe: false,
+    cacheTtlMs: 0,
+  });
+}
+
+export async function getChatSession(sessionId: string, agentId: string): Promise<ChatSessionDetail> {
+  return fetchJson<ChatSessionDetail>(
+    `/api/chat/sessions/${encodeURIComponent(sessionId)}?agentId=${encodeURIComponent(agentId)}`,
+    {
+      dedupe: false,
+      cacheTtlMs: 0,
+    }
+  );
+}
+
+export async function sendChatMessage(input: {
+  agentId: string;
+  sessionId?: string;
+  message: string;
+}): Promise<ChatRunStatus> {
+  const response = await fetch('/api/chat/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = typeof payload?.error === 'string' ? payload.error : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  invalidateClientGatewayCache();
+  return response.json() as Promise<ChatRunStatus>;
+}
+
+export async function getChatRunStatus(sessionId: string, agentId?: string): Promise<ChatRunStatus> {
+  return fetchJson<ChatRunStatus>(
+    `/api/chat/messages?sessionId=${encodeURIComponent(sessionId)}${agentId ? `&agentId=${encodeURIComponent(agentId)}` : ''}`,
+    {
+      dedupe: false,
+      cacheTtlMs: 0,
+    }
+  );
+}
+
+export async function stopChatMessage(sessionId: string): Promise<ChatRunStatus> {
+  const response = await fetch(`/api/chat/messages?sessionId=${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = typeof payload?.error === 'string' ? payload.error : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  invalidateClientGatewayCache();
+  return response.json() as Promise<ChatRunStatus>;
 }

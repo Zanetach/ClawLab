@@ -4,7 +4,7 @@ import { startTransition, useRef, useState } from 'react';
 import { StatusBar } from '@/components/dashboard/StatusBar';
 import { GaugeCard } from '@/components/dashboard/GaugeCard';
 import { LobsterCard } from '@/components/dashboard/LobsterCard';
-import { DashboardSnapshot } from '@/lib/gateway-core';
+import { DashboardSnapshot, normalizeGatewayStatus } from '@/lib/gateway-core';
 import { getDashboardSnapshot, getDashboardSummary } from '@/lib/gateway';
 import { useVisibleInterval } from '@/lib/use-visible-interval';
 import type { Agent, DashboardSummary, GatewayConnectionConfig, TokenHistoryPoint } from '@/lib/types';
@@ -238,28 +238,38 @@ export function DashboardClient({ initialSnapshot, activeConnection }: Dashboard
 }
 
 function mergeSnapshotSummary(snapshot: DashboardSnapshot, summary: DashboardSummary): DashboardSnapshot {
+  const normalizedGatewayStatus = normalizeGatewayStatus(summary.gatewayStatus, snapshot.agents);
+  const normalizedStats = {
+    agentCount: summary.stats?.agentCount ?? snapshot.stats.agentCount,
+    botCount: summary.stats?.botCount ?? snapshot.stats.botCount,
+    tokenConsumption: summary.stats?.tokenConsumption ?? snapshot.stats.tokenConsumption,
+    activeAlerts: summary.stats?.activeAlerts ?? snapshot.stats.activeAlerts,
+  };
+  const normalizedAlerts = Array.isArray(summary.alerts) ? summary.alerts : snapshot.alerts;
+  const normalizedGeneratedAt = summary.generatedAt || snapshot.generatedAt;
+
   if (
-    snapshot.gatewayStatus.status === summary.gatewayStatus.status &&
-    snapshot.gatewayStatus.version === summary.gatewayStatus.version &&
-    snapshot.gatewayStatus.uptime === summary.gatewayStatus.uptime &&
-    snapshot.gatewayStatus.connectedAgents === summary.gatewayStatus.connectedAgents &&
-    snapshot.gatewayStatus.totalBots === summary.gatewayStatus.totalBots &&
-    snapshot.gatewayStatus.totalTokens === summary.gatewayStatus.totalTokens &&
-    snapshot.stats.agentCount === summary.stats.agentCount &&
-    snapshot.stats.botCount === summary.stats.botCount &&
-    snapshot.stats.tokenConsumption === summary.stats.tokenConsumption &&
-    snapshot.stats.activeAlerts === summary.stats.activeAlerts &&
-    snapshot.alerts.length === summary.alerts.length
+    snapshot.gatewayStatus.status === normalizedGatewayStatus.status &&
+    snapshot.gatewayStatus.version === normalizedGatewayStatus.version &&
+    snapshot.gatewayStatus.uptime === normalizedGatewayStatus.uptime &&
+    snapshot.gatewayStatus.connectedAgents === normalizedGatewayStatus.connectedAgents &&
+    snapshot.gatewayStatus.totalBots === normalizedGatewayStatus.totalBots &&
+    snapshot.gatewayStatus.totalTokens === normalizedGatewayStatus.totalTokens &&
+    snapshot.stats.agentCount === normalizedStats.agentCount &&
+    snapshot.stats.botCount === normalizedStats.botCount &&
+    snapshot.stats.tokenConsumption === normalizedStats.tokenConsumption &&
+    snapshot.stats.activeAlerts === normalizedStats.activeAlerts &&
+    snapshot.alerts.length === normalizedAlerts.length
   ) {
     return snapshot;
   }
 
   return {
     ...snapshot,
-    gatewayStatus: summary.gatewayStatus,
-    stats: summary.stats,
-    alerts: summary.alerts,
-    generatedAt: summary.generatedAt,
+    gatewayStatus: normalizedGatewayStatus,
+    stats: normalizedStats,
+    alerts: normalizedAlerts,
+    generatedAt: normalizedGeneratedAt,
   };
 }
 

@@ -13,6 +13,7 @@ import {
 import { getCliAgents, getCliStatus } from './openclaw-cli';
 import { applyObservedSessionUsage } from './openclaw-session-usage';
 import { getConfiguredAgentEntries } from './openclaw-admin';
+import { getLocalStatePath } from './local-state-path';
 import type {
   GatewayConnectionConfig,
   GatewayConnectionHealth,
@@ -21,7 +22,7 @@ import type {
   GatewayStatus,
 } from './types';
 
-const STORE_PATH = path.join(process.cwd(), '.clawlab', 'gateway-connection.json');
+const STORE_PATH = getLocalStatePath('gateway-connection.json');
 
 type OpenClawConfig = {
   gateway?: {
